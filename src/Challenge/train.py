@@ -9,7 +9,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from .dataset import CIFAR10Dataset
-from .model import ConvolutionalNeuralNetwork,VGG
+from .model import VGG
 
 
 def get_device(force: str = "auto") -> torch.device:
