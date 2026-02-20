@@ -7,9 +7,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from tqdm import tqdm
-
-from .dataset import CIFAR10Dataset
-from .model import VGG
+from dataset import SignosDataset 
+from model import VGG
 
 
 def get_device(force: str = "auto") -> torch.device:
@@ -33,18 +32,18 @@ def train_model(output_folder: Path, device: torch.device):
     )
 
     # Cargas el bloque de 50k de CIFAR10, y luego lo divides en dos (90% entrenamiento, 10% validación interna)
-    full_train_data = CIFAR10Dataset("./data", train=True, transform=transform)
+    train_subset = SignosDataset(Mode="train", transform=transform)
 
     # Divides ese bloque en dos (90% entrenamiento, 10% validación interna)
-    train_subset, val_subset = random_split(full_train_data, [45000, 5000])
+    val_subset=SignosDataset(Mode="val", transform=transform)
 
     # Create DataLoaders for the datasets
     pin_memory = True if device.type == "cuda" else False
-    train_loader = DataLoader(train_subset, batch_size=2048, shuffle=True, pin_memory=pin_memory)
-    val_loader = DataLoader(val_subset, batch_size=2048, shuffle=False, pin_memory=pin_memory)
+    train_loader = DataLoader(train_subset, batch_size=1, shuffle=True, pin_memory=pin_memory)
+    val_loader = DataLoader(val_subset, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
     # Define the model, loss function, and optimizer
-    output_dim = 10  # CIFAR-10 has 10 classes
+    output_dim = 19 
     model = VGG(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)

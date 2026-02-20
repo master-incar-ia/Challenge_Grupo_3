@@ -6,10 +6,18 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
 
-class CIFAR10Dataset(Dataset):
-    def __init__(self, root, train=True, transform=None, download=True):
-        self.data = datasets.CIFAR10(root=root, train=train, transform=transform, download=download)
-
+class SignosDataset(Dataset):
+    def __init__(self, root=None, Mode="train", transform=None):
+        base_dir = Path(root) if root else Path(__file__).resolve().parents[2] / "dataset"
+        if Mode == "train":
+            self.data = datasets.ImageFolder(base_dir / "train" , transform=transform)
+        elif Mode == "val":
+            self.data = datasets.ImageFolder(base_dir / "val", transform=transform)
+        elif Mode == "test":
+            self.data = datasets.ImageFolder(base_dir / "test", transform=transform)
+        else:
+            raise ValueError(f"Invalid mode: {Mode}. Expected 'train', 'val', or 'test'.")
+       
     def __len__(self):
         return len(self.data)
 
@@ -25,7 +33,10 @@ class CIFAR10Dataset(Dataset):
                 plt.xticks([])
                 plt.yticks([])
                 plt.grid(False)
-                img = self.data[i * 10 + j][0].permute(1, 2, 0)
+                img, _ = self.data[i * 10 + j]
+                if not torch.is_tensor(img):
+                    img = transforms.ToTensor()(img)
+                img = img.permute(1, 2, 0)
                 # change axis 0 and 3
                 plt.imshow(img, cmap=plt.cm.binary)
                 plt.xlabel(self.data.classes[self.data[i * 10 + j][1]])
@@ -40,11 +51,14 @@ if __name__ == "__main__":
 
     # Data augmentation
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))]
+        [transforms.Resize((232, 232)),
+            transforms.ToTensor(), transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))]
     )
 
-    dataset_train = CIFAR10Dataset("./data", train=True, transform=transform)
-    dataset_test = CIFAR10Dataset("./data", train=False, transform=transform)
+    dataset_train = SignosDataset(Mode="train", transform=transform)
+    dataset_val = SignosDataset(Mode="val", transform=transform)
+    dataset_test = SignosDataset(Mode="test", transform=transform)
+
     print(f"Dataset length: {len(dataset_train)}")
     print(f"First item: {dataset_train[0]}")
     dataset_train.plot(output_folder / "plot_dataset_example.png")

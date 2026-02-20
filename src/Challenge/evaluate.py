@@ -147,12 +147,12 @@ if __name__ == "__main__":
     )
 
     # Cargas el bloque de 50k
-    full_train_data = CIFAR10Dataset("./data", train=True, transform=transform)
+    full_train_data = CIFAR10Dataset(train=True, transform=transform)
     # Divides ese bloque en dos (90% entrenamiento, 10% validación interna)
     train_subset, val_subset = random_split(full_train_data, [45000, 5000])
 
     # Cargas el bloque de 10k de test (con transform limpia, sin augmentation)
-    test_dataset = CIFAR10Dataset("./data", train=False, transform=transform)
+    test_dataset = CIFAR10Dataset(train=False, transform=transform)
 
     # Create DataLoaders for the datasets
     train_loader = DataLoader(train_subset, batch_size=10, shuffle=True)
