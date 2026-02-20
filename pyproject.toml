@@ -1,0 +1,57 @@
+[project]
+name = "challenge"
+description = "A cool introductory practice to learn the basics for deep learning"
+readme = "README.md"
+requires-python = "==3.11.*"
+version = "0.0.1"
+
+dependencies = [
+    "numpy>=1.21.2",
+    "scipy>=1.7.3",
+    "opencv-python",
+    "python-dotenv",
+    "pytorch-lightning",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "scikit-image",
+    "albumentations",
+    "tqdm",
+    "pytest",
+    "ruff",
+    "ipywidgets",
+    "ipympl",
+    "xgboost",
+    "scikit-fuzzy",
+    "gymnasium",
+    "pygame",
+    "ffmpeg-python",
+    "ipykernel",
+    "stringzilla<=4.0.0",
+    "plotly>=6.3.1",
+]
+
+
+
+########################## Tool Configuration ##########################
+[tool.ruff]
+line-length = 100
+ 
+[tool.ruff.lint]
+select = [
+    "N",    # pep8-naming
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "PD",   # pandas vet
+    "NPY",  # NumPy-specific rules
+]
+ignore = [
+    "C901",  # Too complex 
+    "PD901", # Avoid using df for DataFrames
+]
+
