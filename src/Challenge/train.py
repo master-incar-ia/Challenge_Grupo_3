@@ -27,8 +27,13 @@ def get_device(force: str = "auto") -> torch.device:
 
 def train_model(output_folder: Path, device: torch.device):
     # Data augmentation
+    image_size = (32,32)
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))]
+        [
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+        ]
     )
 
     # Cargas el bloque de 50k de CIFAR10, y luego lo divides en dos (90% entrenamiento, 10% validación interna)
@@ -39,8 +44,8 @@ def train_model(output_folder: Path, device: torch.device):
 
     # Create DataLoaders for the datasets
     pin_memory = True if device.type == "cuda" else False
-    train_loader = DataLoader(train_subset, batch_size=1, shuffle=True, pin_memory=pin_memory)
-    val_loader = DataLoader(val_subset, batch_size=1, shuffle=False, pin_memory=pin_memory)
+    train_loader = DataLoader(train_subset, batch_size=2048, shuffle=True, pin_memory=pin_memory)
+    val_loader = DataLoader(val_subset, batch_size=2048, shuffle=False, pin_memory=pin_memory)
 
     # Define the model, loss function, and optimizer
     output_dim = 19 
