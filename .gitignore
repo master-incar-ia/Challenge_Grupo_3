@@ -3,3 +3,4 @@ outs
 .venv
 .venv311
 .vscode
+__pycache__/
