@@ -161,9 +161,15 @@ if __name__ == "__main__":
     elif "classifier.3.weight" in checkpoint:
         checkpoint_output_dim = checkpoint["classifier.3.weight"].shape[0]
         model = MultiTaskVGG(output_dim=checkpoint_output_dim)
+    elif "classification_model.classifier_head.3.weight" in checkpoint:
+        checkpoint_output_dim = checkpoint["classification_model.classifier_head.3.weight"].shape[0]
+        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
+    elif "classifier_head.3.weight" in checkpoint:
+        checkpoint_output_dim = checkpoint["classifier_head.3.weight"].shape[0]
+        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
     else:
         raise KeyError(
-            "Unsupported checkpoint format: expected keys 'fc8.weight' or 'classifier.3.weight'."
+            "Unsupported checkpoint format: expected keys 'fc8.weight', 'classifier.3.weight', 'classifier_head.3.weight' or 'classification_model.classifier_head.3.weight'."
         )
 
     if checkpoint_output_dim != len(class_names):

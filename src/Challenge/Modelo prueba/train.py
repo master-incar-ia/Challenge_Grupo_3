@@ -10,28 +10,28 @@ import torch.optim as optim
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-from dataset import SignosDataset, build_augment_transform, build_eval_transform
-from model import MultiTaskVGG
-from model import ConvolutionalNet
-from model import SimpleResNet
+
+try:
+    from .dataset import SignosDataset, build_augment_transform, build_eval_transform
+    from .model import Segmentation, VGG
+except ImportError:
+    from dataset import SignosDataset, build_augment_transform, build_eval_transform
+    from model import Segmentation, VGG
 
 
 BATCH_SIZE = 512
 IMAGE_SIZE = (32, 32)
-SEGMENTATION_WEIGHT = 1.0
+NUM_EPOCHS = 100
+CACHE_IN_RAM = True
+PIPELINE_TO_RUN = "vgg"  # "segmentation" | "vgg"
 
 
 def get_device(force: str = "auto") -> torch.device:
-    """Return a torch.device based on the `force` option.
-
-    force: 'auto'|'cpu'|'cuda' - when 'auto' will pick cuda if available.
-    """
     force = force.lower()
     if force == "cpu":
         return torch.device("cpu")
     if force == "cuda":
         return torch.device("cuda")
-    # auto
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -41,11 +41,9 @@ def profile_pipeline(
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     device: torch.device,
-    num_batches: int = 100,
+    num_batches: int = 30,
 ) -> None:
-    """Profile data loading, H2D transfer and compute time on a few batches."""
     model.train()
-
     batches_to_profile = min(num_batches, len(train_loader))
     if batches_to_profile == 0:
         print("[PROFILE] No batches available to profile.")
@@ -113,7 +111,6 @@ def build_pseudo_masks(inputs: torch.Tensor) -> torch.Tensor:
 
 
 def build_cached_tensor_dataset(dataset, name: str) -> TensorDataset:
-    """Preload transformed samples into RAM to avoid disk/PIL bottlenecks at runtime."""
     print(f"Caching {name} dataset in RAM...")
     images = []
     labels = []
@@ -131,32 +128,25 @@ def build_cached_tensor_dataset(dataset, name: str) -> TensorDataset:
     return TensorDataset(image_tensor, label_tensor)
 
 
-def train_model(output_folder: Path, device: torch.device):
-    # Data transforms
+def build_loaders(device: torch.device):
     eval_transform = build_eval_transform(image_size=IMAGE_SIZE)
     augment_transform = build_augment_transform(image_size=IMAGE_SIZE)
 
-    # Cargas el bloque de 50k de CIFAR10, y luego lo divides en dos (90% entrenamiento, 10% validación interna)
     train_subset = SignosDataset(
         Mode="train",
         transform=eval_transform,
         augmented_transform=augment_transform,
         include_original=True,
     )
-
-    # Divides ese bloque en dos (90% entrenamiento, 10% validación interna)
     val_subset = SignosDataset(Mode="val", transform=eval_transform)
-
     class_count = len(train_subset.classes)
 
-    cache_in_ram = True
-    if cache_in_ram:
+    if CACHE_IN_RAM:
         train_subset = build_cached_tensor_dataset(train_subset, name="train")
         val_subset = build_cached_tensor_dataset(val_subset, name="val")
 
-    # Create DataLoaders for the datasets
     pin_memory = device.type == "cuda"
-    num_workers = 0 if cache_in_ram else min(8, os.cpu_count() or 1)
+    num_workers = 0 if CACHE_IN_RAM else min(8, os.cpu_count() or 1)
     persistent_workers = num_workers > 0
     prefetch_factor = 4 if num_workers > 0 else None
 
@@ -179,83 +169,58 @@ def train_model(output_folder: Path, device: torch.device):
         prefetch_factor=prefetch_factor,
     )
 
-    # Define the model, loss function, and optimizer
-    output_dim = class_count
-    model = MultiTaskVGG(output_dim=output_dim).to(device) Ekain/Inigo
-    #model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
-    #model = SimpleResNet(output_dim=output_dim).to(device)
-    criterion_cls = nn.CrossEntropyLoss()
-    criterion_seg = nn.BCEWithLogitsLoss()
+    return train_loader, val_loader, class_count
+
+
+def train_segmentation_model(output_folder: Path, device: torch.device):
+    train_loader, val_loader, _ = build_loaders(device)
+
+    model = Segmentation().to(device)
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
     scaler = GradScaler("cuda", enabled=device.type == "cuda")
 
     if device.type == "cuda":
         torch.backends.cudnn.benchmark = True
         torch.set_float32_matmul_precision("high")
-        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
-        print(
-            f"DataLoader workers={num_workers}, pin_memory={pin_memory}, "
-            f"persistent_workers={persistent_workers}"
-        )
+        profile_pipeline(train_loader, model, nn.MSELoss(), optimizer, device)
 
-    if device.type == "cuda":
-        print("Running quick pipeline profile (30 batches)...")
-        profile_pipeline(
-            train_loader=train_loader,
-            model=model,
-            criterion=criterion_cls,
-            optimizer=optimizer,
-            device=device,
-            num_batches=30,
-        )
-
-    # Training loop with validation and saving best weights
-    num_epochs = 100
     best_val_loss = float("inf")
-    best_model_path = output_folder / "best_model.pth"
-
+    best_model_path = output_folder / "best_segmentation.pth"
     train_losses = []
     val_losses = []
 
-    for epoch in tqdm(range(num_epochs)):
+    for epoch in tqdm(range(NUM_EPOCHS), desc="Train segmentation"):
         model.train()
-        train_loss = 0
-        for inputs, targets in train_loader:
-            # Forward pass
+        train_loss = 0.0
+
+        for inputs, _ in train_loader:
             inputs_cuda = inputs.to(device, non_blocking=True)
-            targets_cuda = targets.to(device, non_blocking=True)
             mask_targets = build_pseudo_masks(inputs_cuda)
 
             with autocast("cuda", enabled=device.type == "cuda"):
-                class_logits, mask_logits = model(inputs_cuda)
-                loss_cls = criterion_cls(class_logits, targets_cuda)
-                loss_seg = criterion_seg(mask_logits, mask_targets)
-                loss = loss_cls + SEGMENTATION_WEIGHT * loss_seg
+                mask_logits = model(inputs_cuda)
+                loss = criterion(mask_logits, mask_targets)
 
-            train_loss += loss.item()
-
-            # Backward pass and optimization
             optimizer.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
 
+            train_loss += loss.item()
+
         train_loss /= len(train_loader)
         train_losses.append(train_loss)
 
-        # Validation step
         model.eval()
-        val_loss = 0
+        val_loss = 0.0
         with torch.no_grad():
-            for inputs, targets in val_loader:
+            for inputs, _ in val_loader:
                 inputs_cuda = inputs.to(device, non_blocking=True)
-                targets_cuda = targets.to(device, non_blocking=True)
                 mask_targets = build_pseudo_masks(inputs_cuda)
                 with autocast("cuda", enabled=device.type == "cuda"):
-                    class_logits, mask_logits = model(inputs_cuda)
-                    loss_cls = criterion_cls(class_logits, targets_cuda)
-                    loss_seg = criterion_seg(mask_logits, mask_targets)
-                    loss = loss_cls + SEGMENTATION_WEIGHT * loss_seg
+                    mask_logits = model(inputs_cuda)
+                    loss = criterion(mask_logits, mask_targets)
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
@@ -265,37 +230,126 @@ def train_model(output_folder: Path, device: torch.device):
             best_val_loss = val_loss
             torch.save(model.state_dict(), best_model_path)
 
-        if (epoch + 1) % 10 == 0:
-            print(
-                f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}"
-            )
-
-    print(f"Best validation loss: {best_val_loss:.4f}, Model saved to {best_model_path}")
-
-    # Plotting the training and validation loss
     plt.figure(figsize=(10, 5))
-    plt.plot(range(num_epochs), train_losses, label="Train Loss")
-    plt.plot(range(num_epochs), val_losses, label="Validation Loss")
+    plt.plot(range(NUM_EPOCHS), train_losses, label="Train Loss")
+    plt.plot(range(NUM_EPOCHS), val_losses, label="Validation Loss")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.legend()
-    plt.title("Training and Validation Loss")
+    plt.title("Segmentation Training Loss")
+    plt.savefig(output_folder / "loss_plot_segmentation.png")
 
-    # Save the plot to the outs/ folder
-    plt.savefig(output_folder / "loss_plot.png")
+    print(f"Best segmentation val loss: {best_val_loss:.4f}, saved at {best_model_path}")
+
+
+def train_vgg_model(output_folder: Path, device: torch.device):
+    train_loader, val_loader, class_count = build_loaders(device)
+
+    segmentation_checkpoint = output_folder / "best_segmentation.pth"
+    if not segmentation_checkpoint.exists():
+        raise FileNotFoundError(
+            f"No se encontró {segmentation_checkpoint}. Entrena primero segmentation."
+        )
+
+    segmentation_model = Segmentation().to(device)
+    segmentation_model.load_state_dict(torch.load(segmentation_checkpoint, map_location=device))
+    segmentation_model.eval()
+    for parameter in segmentation_model.parameters():
+        parameter.requires_grad = False
+
+    model = VGG(output_dim=class_count, in_channels=4).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=0.0001)
+    scaler = GradScaler("cuda", enabled=device.type == "cuda")
+
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
+        torch.set_float32_matmul_precision("high")
+        profile_pipeline(train_loader, model, criterion, optimizer, device)
+
+    best_val_loss = float("inf")
+    best_model_path = output_folder / "best_vgg.pth"
+    train_losses = []
+    val_losses = []
+
+    for epoch in tqdm(range(NUM_EPOCHS), desc="Train VGG"):
+        model.train()
+        train_loss = 0.0
+
+        for inputs, targets in train_loader:
+            inputs_cuda = inputs.to(device, non_blocking=True)
+            targets_cuda = targets.to(device, non_blocking=True)
+
+            with torch.no_grad():
+                mask_logits = segmentation_model(inputs_cuda)
+                mask_prob = torch.sigmoid(mask_logits)
+
+            classifier_input = torch.cat([inputs_cuda, mask_prob], dim=1)
+
+            with autocast("cuda", enabled=device.type == "cuda"):
+                logits = model(classifier_input)
+                loss = criterion(logits, targets_cuda)
+
+            optimizer.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
+            train_loss += loss.item()
+
+        train_loss /= len(train_loader)
+        train_losses.append(train_loss)
+
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs_cuda = inputs.to(device, non_blocking=True)
+                targets_cuda = targets.to(device, non_blocking=True)
+                mask_logits = segmentation_model(inputs_cuda)
+                mask_prob = torch.sigmoid(mask_logits)
+                classifier_input = torch.cat([inputs_cuda, mask_prob], dim=1)
+
+                with autocast("cuda", enabled=device.type == "cuda"):
+                    logits = model(classifier_input)
+                    loss = criterion(logits, targets_cuda)
+                val_loss += loss.item()
+
+        val_loss /= len(val_loader)
+        val_losses.append(val_loss)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), best_model_path)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(NUM_EPOCHS), train_losses, label="Train Loss")
+    plt.plot(range(NUM_EPOCHS), val_losses, label="Validation Loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.title("VGG (RGB+Mask) Training Loss")
+    plt.savefig(output_folder / "loss_plot_vgg.png")
+
+    print(f"Best VGG val loss: {best_val_loss:.4f}, saved at {best_model_path}")
 
 
 if __name__ == "__main__":
-    # Set the seed for reproducibility
     torch.manual_seed(42)
 
     if sys.gettrace() is not None:
-        print("WARNING: Running under debugger; performance can be much slower. Run from terminal for valid benchmarks.")
+        print("WARNING: Running under debugger; performance can be much slower. Run from terminal.")
 
-    # Create output folder based on file folder
     output_folder = Path(__file__).parent.parent.parent / "outs" / Path(__file__).parent.name
     output_folder.mkdir(exist_ok=True, parents=True)
 
-    device = get_device("auto")  # choices are "auto", "cpu", "cuda"
+    device = get_device("auto")
     print(f"Using device: {device}")
-    train_model(output_folder, device=device)
+    print(f"Pipeline: {PIPELINE_TO_RUN}")
+
+    if PIPELINE_TO_RUN == "segmentation":
+        train_segmentation_model(output_folder, device)
+    elif PIPELINE_TO_RUN == "vgg":
+        train_vgg_model(output_folder, device)
+    else:
+        raise ValueError("PIPELINE_TO_RUN must be 'segmentation' or 'vgg'.")
