@@ -14,11 +14,11 @@ from model import SimpleResNet
 
 try:
     from .dataset import SignosDataset
-    from .model import VGG, ConvolutionalNeuralNetwork
+    from .model import VGG, ConvolutionalNeuralNetwork, SimpleResNet
     from .train import BATCH_SIZE, IMAGE_SIZE
 except ImportError:
     from dataset import SignosDataset
-    from model import VGG, ConvolutionalNeuralNetwork
+    from model import VGG, ConvolutionalNeuralNetwork, SimpleResNet
     from train import BATCH_SIZE, IMAGE_SIZE
 
 
