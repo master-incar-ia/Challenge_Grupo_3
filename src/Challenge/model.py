@@ -15,7 +15,6 @@ class ConvolutionalNeuralNetwork(nn.Module):
         self.max_pooling2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.flatten = nn.Flatten()
         self.Final_Layer3 = nn.Linear(32 * 6 * 6, output_dim)
-        self.activation3 = nn.Softmax(dim=1)
 
     def forward(self, x, use_activation=True):
         x1 = self.con2D_1(x)
@@ -26,8 +25,7 @@ class ConvolutionalNeuralNetwork(nn.Module):
         x6 = self.max_pooling2(x5)
         x7 = self.flatten(x6)
         x8 = self.Final_Layer3(x7)
-        x9 = self.activation3(x8)
-        return x9
+        return x8
 
 
 # Definimos el modelo VGG_16, siguiendo la página 54 de la diapositiva "Convolutional Neural Networks (CNNs)".
@@ -57,7 +55,6 @@ class VGG(nn.Module):
         self.fc7 = nn.Linear(8192, 512)
         self.relu15 = nn.ReLU()
         self.fc8 = nn.Linear(512, output_dim)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         # Bloque 1
@@ -81,9 +78,7 @@ class VGG(nn.Module):
         x35 = self.fc7(x34)
         x36 = self.relu15(x35)
         x37 = self.fc8(x36)
-        x38 = self.softmax(x37)
-
-        return x38
+        return x37
 
 
 if __name__ == "__main__":
