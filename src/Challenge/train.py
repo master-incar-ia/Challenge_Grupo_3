@@ -15,6 +15,10 @@ from dataset import SignosDataset
 from model import VGG
 
 
+BATCH_SIZE = 64
+IMAGE_SIZE = (32, 32)
+
+
 def get_device(force: str = "auto") -> torch.device:
     """Return a torch.device based on the `force` option.
 
@@ -119,10 +123,9 @@ def build_cached_tensor_dataset(dataset, name: str) -> TensorDataset:
 
 def train_model(output_folder: Path, device: torch.device):
     # Data augmentation
-    image_size = (32,32)
     transform = transforms.Compose(
         [
-            transforms.Resize(image_size),
+            transforms.Resize(IMAGE_SIZE),
             transforms.ToTensor(),
             transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
         ]
@@ -165,7 +168,7 @@ def train_model(output_folder: Path, device: torch.device):
     )
 
     # Define the model, loss function, and optimizer
-    output_dim = 19 
+    output_dim = len(train_subset.data.classes)
     model = VGG(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)

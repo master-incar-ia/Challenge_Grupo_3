@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -26,20 +27,26 @@ class SignosDataset(Dataset):
         return image, label
 
     def plot(self, filepath):
-        plt.figure(figsize=(10, 10))
-        for i in range(10):
-            for j in range(10):
-                plt.subplot(10, 10, i * 10 + j + 1)
-                plt.xticks([])
-                plt.yticks([])
-                plt.grid(False)
-                img, _ = self.data[i * 10 + j]
-                if not torch.is_tensor(img):
-                    img = transforms.ToTensor()(img)
-                img = img.permute(1, 2, 0)
-                # change axis 0 and 3
-                plt.imshow(img, cmap=plt.cm.binary)
-                plt.xlabel(self.data.classes[self.data[i * 10 + j][1]])
+        num_samples = min(len(self.data), 100)
+        if num_samples == 0:
+            raise ValueError("Cannot plot an empty dataset.")
+
+        num_cols = min(10, num_samples)
+        num_rows = math.ceil(num_samples / num_cols)
+
+        plt.figure(figsize=(num_cols, num_rows))
+        for idx in range(num_samples):
+            plt.subplot(num_rows, num_cols, idx + 1)
+            plt.xticks([])
+            plt.yticks([])
+            plt.grid(False)
+
+            img, label = self.data[idx]
+            if not torch.is_tensor(img):
+                img = transforms.ToTensor()(img)
+            img = img.permute(1, 2, 0)
+            plt.imshow(img, cmap=plt.cm.binary)
+            plt.xlabel(self.data.classes[label])
         plt.savefig(filepath)
         plt.show()
         plt.close()
