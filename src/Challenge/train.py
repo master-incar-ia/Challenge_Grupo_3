@@ -11,6 +11,10 @@ from dataset import SignosDataset
 from model import VGG
 
 
+BATCH_SIZE = 64
+IMAGE_SIZE = (32, 32)
+
+
 def get_device(force: str = "auto") -> torch.device:
     """Return a torch.device based on the `force` option.
 
@@ -25,12 +29,11 @@ def get_device(force: str = "auto") -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_model(output_folder: Path, device: torch.device):
+def train_model(output_folder: Path, device: torch.device, batch_size: int = BATCH_SIZE):
     # Data augmentation
-    image_size = (32,32)
     transform = transforms.Compose(
         [
-            transforms.Resize(image_size),
+            transforms.Resize(IMAGE_SIZE),
             transforms.ToTensor(),
             transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
         ]
@@ -44,11 +47,21 @@ def train_model(output_folder: Path, device: torch.device):
 
     # Create DataLoaders for the datasets
     pin_memory = True if device.type == "cuda" else False
-    train_loader = DataLoader(train_subset, batch_size=2048, shuffle=True, pin_memory=pin_memory)
-    val_loader = DataLoader(val_subset, batch_size=2048, shuffle=False, pin_memory=pin_memory)
+    train_loader = DataLoader(
+        train_subset,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=pin_memory,
+    )
+    val_loader = DataLoader(
+        val_subset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=pin_memory,
+    )
 
     # Define the model, loss function, and optimizer
-    output_dim = 19 
+    output_dim = len(train_subset.data.classes)
     model = VGG(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
@@ -121,13 +134,13 @@ def train_model(output_folder: Path, device: torch.device):
 
 
 if __name__ == "__main__":
-    # Create output folder based on file folder
-    output_folder = Path(__file__).parent.parent.parent / "outs" / Path(__file__).parent.name
+    # Create output folder in project root
+    output_folder = Path(__file__).parent.parent.parent / "outs"
     output_folder.mkdir(exist_ok=True, parents=True)
 
     device = get_device("auto")  # choices are "auto", "cpu", "cuda"
     print(f"Using device: {device}")
-    train_model(output_folder, device=device)
+    train_model(output_folder, device=device, batch_size=BATCH_SIZE)
 
     # Set the seed for reproducibility
     torch.manual_seed(42)
