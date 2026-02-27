@@ -102,8 +102,27 @@ def save_metrics_as_picture(metrics, filepath):
     plt.savefig(filepath, bbox_inches="tight", dpi=300)
 
 
+def resolve_checkpoint_path(base_outs: Path) -> Path:
+    """Resolve best_model checkpoint path trying common project locations."""
+    candidates = [
+        base_outs / "Challenge" / "best_model.pth",
+        base_outs / "best_model.pth",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    tried = "\n".join(str(path) for path in candidates)
+    raise FileNotFoundError(
+        "No se encontró el checkpoint best_model.pth. Rutas intentadas:\n"
+        f"{tried}\n"
+        "Primero ejecuta train.py para generar el modelo."
+    )
+
+
 if __name__ == "__main__":
-    output_folder = Path(__file__).parent.parent.parent / "outs"
+    base_outs = Path(__file__).parent.parent.parent / "outs"
+    output_folder = base_outs / Path(__file__).parent.name
     output_folder.mkdir(exist_ok=True, parents=True)
     # Set the seed for reproducibility
     torch.manual_seed(42)
@@ -127,7 +146,8 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     # Load the best model weights
-    checkpoint_path = output_folder / "best_model.pth"
+    checkpoint_path = resolve_checkpoint_path(base_outs)
+    print(f"Loading checkpoint from: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     checkpoint_output_dim = checkpoint["fc8.weight"].shape[0]
 

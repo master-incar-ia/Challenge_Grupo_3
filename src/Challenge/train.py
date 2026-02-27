@@ -11,7 +11,7 @@ from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision import transforms
 from tqdm import tqdm
-from dataset import SignosDataset 
+from dataset import SignosDataset, build_augment_transform, build_eval_transform
 from model import VGG
 
 
@@ -122,20 +122,22 @@ def build_cached_tensor_dataset(dataset, name: str) -> TensorDataset:
 
 
 def train_model(output_folder: Path, device: torch.device):
-    # Data augmentation
-    transform = transforms.Compose(
-        [
-            transforms.Resize(IMAGE_SIZE),
-            transforms.ToTensor(),
-            transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
-        ]
-    )
+    # Data transforms
+    eval_transform = build_eval_transform(image_size=IMAGE_SIZE)
+    augment_transform = build_augment_transform(image_size=IMAGE_SIZE)
 
     # Cargas el bloque de 50k de CIFAR10, y luego lo divides en dos (90% entrenamiento, 10% validación interna)
-    train_subset = SignosDataset(Mode="train", transform=transform)
+    train_subset = SignosDataset(
+        Mode="train",
+        transform=eval_transform,
+        augmented_transform=augment_transform,
+        include_original=True,
+    )
 
     # Divides ese bloque en dos (90% entrenamiento, 10% validación interna)
-    val_subset=SignosDataset(Mode="val", transform=transform)
+    val_subset = SignosDataset(Mode="val", transform=eval_transform)
+
+    class_count = len(train_subset.classes)
 
     cache_in_ram = True
     if cache_in_ram:
@@ -150,7 +152,7 @@ def train_model(output_folder: Path, device: torch.device):
 
     train_loader = DataLoader(
         train_subset,
-        batch_size=512,
+        batch_size=BATCH_SIZE,
         shuffle=True,
         pin_memory=pin_memory,
         num_workers=num_workers,
@@ -159,7 +161,7 @@ def train_model(output_folder: Path, device: torch.device):
     )
     val_loader = DataLoader(
         val_subset,
-        batch_size=512,
+        batch_size=BATCH_SIZE,
         shuffle=False,
         pin_memory=pin_memory,
         num_workers=num_workers,
@@ -168,7 +170,7 @@ def train_model(output_folder: Path, device: torch.device):
     )
 
     # Define the model, loss function, and optimizer
-    output_dim = len(train_subset.data.classes)
+    output_dim = class_count
     model = VGG(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
