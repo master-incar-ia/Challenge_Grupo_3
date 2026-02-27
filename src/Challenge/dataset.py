@@ -147,4 +147,4 @@ if __name__ == "__main__":
 
     print(f"Dataset length: {len(dataset_train)}")
     print(f"First item: {dataset_train[0]}")
-    dataset_train.plot(output_folder / "plot_dataset_example.png")
+    dataset_val.plot(output_folder / "plot_dataset_example2.png")

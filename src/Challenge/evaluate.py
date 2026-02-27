@@ -11,11 +11,11 @@ from torchvision import transforms
 
 try:
     from .dataset import SignosDataset
-    from .model import VGG, ConvolutionalNeuralNetwork
+    from .model import ConvolutionalNeuralNetwork, MultiTaskVGG, VGG
     from .train import BATCH_SIZE, IMAGE_SIZE
 except ImportError:
     from dataset import SignosDataset
-    from model import VGG, ConvolutionalNeuralNetwork
+    from model import ConvolutionalNeuralNetwork, MultiTaskVGG, VGG
     from train import BATCH_SIZE, IMAGE_SIZE
 
 
@@ -27,6 +27,8 @@ def evaluate_and_plot(loader, model, dataset_name, output_folder, class_names):
     with torch.no_grad():
         for inputs, targets in loader:
             outputs = model(inputs)
+            if isinstance(outputs, tuple):
+                outputs = outputs[0]
             predictions = outputs.argmax(dim=1)
             all_predictions.append(predictions.cpu().numpy())
             all_targets.append(targets.cpu().numpy())
@@ -149,7 +151,17 @@ if __name__ == "__main__":
     checkpoint_path = resolve_checkpoint_path(base_outs)
     print(f"Loading checkpoint from: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    checkpoint_output_dim = checkpoint["fc8.weight"].shape[0]
+
+    if "fc8.weight" in checkpoint:
+        checkpoint_output_dim = checkpoint["fc8.weight"].shape[0]
+        model = VGG(output_dim=checkpoint_output_dim)
+    elif "classifier.3.weight" in checkpoint:
+        checkpoint_output_dim = checkpoint["classifier.3.weight"].shape[0]
+        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
+    else:
+        raise KeyError(
+            "Unsupported checkpoint format: expected keys 'fc8.weight' or 'classifier.3.weight'."
+        )
 
     if checkpoint_output_dim != len(class_names):
         print(
@@ -162,7 +174,6 @@ if __name__ == "__main__":
         else:
             class_names = class_names[:checkpoint_output_dim]
 
-    model = VGG(output_dim=checkpoint_output_dim)
     model.load_state_dict(checkpoint)
 
     metrics = {}

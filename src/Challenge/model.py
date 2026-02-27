@@ -39,7 +39,7 @@ class VGG(nn.Module):
         self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.relu2 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        
+
         # 2º Bloque de VGG:
         self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.relu3 = nn.ReLU()
@@ -81,9 +81,60 @@ class VGG(nn.Module):
         return x37
 
 
+class MultiTaskVGG(nn.Module):
+    def __init__(self, output_dim=1000):
+        super().__init__()
+
+        self.conv1_1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU()
+        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.relu3 = nn.ReLU()
+        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.relu4 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(8192, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, output_dim),
+        )
+
+        self.segmentation_head = nn.Sequential(
+            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(16, 1, kernel_size=1),
+        )
+
+    def forward(self, x):
+        x1 = self.conv1_1(x)
+        x2 = self.relu1(x1)
+        x3 = self.conv1_2(x2)
+        x4 = self.relu2(x3)
+        x5 = self.pool1(x4)
+
+        x6 = self.conv2_1(x5)
+        x7 = self.relu3(x6)
+        x8 = self.conv2_2(x7)
+        features = self.relu4(x8)
+        pooled = self.pool2(features)
+
+        class_logits = self.classifier(pooled)
+        mask_logits = self.segmentation_head(pooled)
+        return class_logits, mask_logits
+
+
 if __name__ == "__main__":
-    model = ConvolutionalNeuralNetwork(output_dim=10)
+    model = MultiTaskVGG(output_dim=10)
     print(model)
     x = torch.randn(1, 3, 32, 32)  # Example input tensor for CIFAR-10
-    print(model(x, use_activation=True))
+    print(model(x))
     pass

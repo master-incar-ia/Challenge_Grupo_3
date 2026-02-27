@@ -9,14 +9,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, TensorDataset
-from torchvision import transforms
 from tqdm import tqdm
 from dataset import SignosDataset, build_augment_transform, build_eval_transform
-from model import VGG
+from model import MultiTaskVGG
 
 
-BATCH_SIZE = 64
+BATCH_SIZE = 512
 IMAGE_SIZE = (32, 32)
+SEGMENTATION_WEIGHT = 1.0
 
 
 def get_device(force: str = "auto") -> torch.device:
@@ -73,6 +73,8 @@ def profile_pipeline(
         compute_start = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         outputs = model(inputs_cuda)
+        if isinstance(outputs, tuple):
+            outputs = outputs[0]
         loss = criterion(outputs, targets_cuda)
         loss.backward()
         if device.type == "cuda":
@@ -100,6 +102,12 @@ def profile_pipeline(
     print(f"[PROFILE] Compute  : {avg_compute_ms:.2f} ms/batch ({100 * compute_time / total_time:.1f}%)")
     print(f"[PROFILE] Throughput: {samples_per_sec:.1f} samples/s")
     print("[PROFILE] -------------------------------------\n")
+
+
+def build_pseudo_masks(inputs: torch.Tensor) -> torch.Tensor:
+    gray = inputs.mean(dim=1, keepdim=True)
+    threshold = gray.mean(dim=(2, 3), keepdim=True)
+    return (gray > threshold).float()
 
 
 def build_cached_tensor_dataset(dataset, name: str) -> TensorDataset:
@@ -171,8 +179,9 @@ def train_model(output_folder: Path, device: torch.device):
 
     # Define the model, loss function, and optimizer
     output_dim = class_count
-    model = VGG(output_dim=output_dim).to(device)
-    criterion = nn.CrossEntropyLoss()
+    model = MultiTaskVGG(output_dim=output_dim).to(device)
+    criterion_cls = nn.CrossEntropyLoss()
+    criterion_seg = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
     scaler = GradScaler("cuda", enabled=device.type == "cuda")
 
@@ -190,7 +199,7 @@ def train_model(output_folder: Path, device: torch.device):
         profile_pipeline(
             train_loader=train_loader,
             model=model,
-            criterion=criterion,
+            criterion=criterion_cls,
             optimizer=optimizer,
             device=device,
             num_batches=30,
@@ -211,10 +220,13 @@ def train_model(output_folder: Path, device: torch.device):
             # Forward pass
             inputs_cuda = inputs.to(device, non_blocking=True)
             targets_cuda = targets.to(device, non_blocking=True)
+            mask_targets = build_pseudo_masks(inputs_cuda)
 
             with autocast("cuda", enabled=device.type == "cuda"):
-                outputs = model(inputs_cuda)
-                loss = criterion(outputs, targets_cuda)
+                class_logits, mask_logits = model(inputs_cuda)
+                loss_cls = criterion_cls(class_logits, targets_cuda)
+                loss_seg = criterion_seg(mask_logits, mask_targets)
+                loss = loss_cls + SEGMENTATION_WEIGHT * loss_seg
 
             train_loss += loss.item()
 
@@ -234,9 +246,12 @@ def train_model(output_folder: Path, device: torch.device):
             for inputs, targets in val_loader:
                 inputs_cuda = inputs.to(device, non_blocking=True)
                 targets_cuda = targets.to(device, non_blocking=True)
+                mask_targets = build_pseudo_masks(inputs_cuda)
                 with autocast("cuda", enabled=device.type == "cuda"):
-                    outputs = model(inputs_cuda)
-                    loss = criterion(outputs, targets_cuda)
+                    class_logits, mask_logits = model(inputs_cuda)
+                    loss_cls = criterion_cls(class_logits, targets_cuda)
+                    loss_seg = criterion_seg(mask_logits, mask_targets)
+                    loss = loss_cls + SEGMENTATION_WEIGHT * loss_seg
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
