@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from model import ConvolutionalNet
+from model import SimpleResNet
 
 try:
     from .dataset import SignosDataset
@@ -165,7 +166,8 @@ if __name__ == "__main__":
             class_names = class_names[:checkpoint_output_dim]
 
     #model = VGG(output_dim=checkpoint_output_dim)
-    model = ConvolutionalNet(output_dim = checkpoint_output_dim)
+    #model = ConvolutionalNet(output_dim = checkpoint_output_dim)
+    model = SimpleResNet(output_dim=checkpoint_output_dim)
     model.load_state_dict(checkpoint)
 
     metrics = {}

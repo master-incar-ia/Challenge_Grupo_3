@@ -132,6 +132,86 @@ class ConvolutionalNet(nn.Module):
         else:
             y = x
         return y
+    
+class ResidualBlock(nn.Module):
+    """
+    Bloque residual básico sin BatchNorm.
+    Dos convoluciones 3x3 con ReLU y atajo (shortcut) convolucional cuando cambian las dimensiones.
+    """
+    def __init__(self, in_channels, out_channels, stride=1):
+        super().__init__()
+        # Primera convolución (puede reducir resolución si stride > 1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, 
+                               stride=stride, padding=1, bias=True)
+        self.relu1 = nn.ReLU()
+        
+        # Segunda convolución (siempre stride=1)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, 
+                               stride=1, padding=1, bias=True)
+        self.relu2 = nn.ReLU()
+        
+        # Atajo: si cambia el número de canales o la resolución, usamos una conv 1x1
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, 
+                                      stride=stride, bias=True)
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.relu1(out)
+        out = self.conv2(out)
+        out = out + self.shortcut(x)  # conexión residual
+        out = self.relu2(out)
+        return out
+
+class SimpleResNet(nn.Module):
+    """
+    ResNet muy simple para imágenes pequeñas (32x32).
+    - Capa inicial: Conv 3x3, 64 canales.
+    - 4 bloques residuales (un bloque por etapa) con increasing channels: 64 → 128 → 256 → 512.
+    - Reducción espacial en los bloques 2, 3 y 4 (stride=2).
+    - Global Average Pooling + capa lineal final.
+    """
+    def __init__(self, output_dim):
+        super().__init__()
+        # Primera capa convolucional
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.relu = nn.ReLU()
+        
+        # Bloques residuales
+        self.layer1 = self._make_layer(64, 64, stride=1)   # 32x32
+        self.layer2 = self._make_layer(64, 128, stride=2)  # 16x16
+        self.layer3 = self._make_layer(128, 256, stride=2) # 8x8
+        self.layer4 = self._make_layer(256, 512, stride=2) # 4x4
+        
+        # Clasificador
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.linear = nn.Linear(512, output_dim)  # nombre 'linear' para compatibilidad con evaluate.py
+
+    def _make_layer(self, in_channels, out_channels, stride):
+        """Crea un bloque residual (una sola capa en nuestra versión simple)."""
+        return ResidualBlock(in_channels, out_channels, stride)
+
+    def forward(self, x, use_activation=False):
+        """
+        use_activation: si es True aplica softmax (no usado en entrenamiento/evaluación normal,
+                        pero se mantiene por compatibilidad con otros modelos).
+        """
+        x = self.conv1(x)
+        x = self.relu(x)
+        
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.linear(x)
+        
+        if use_activation:
+            return torch.softmax(x, dim=1)
+        return x
 
 if __name__ == "__main__":
     model = ConvolutionalNeuralNetwork(output_dim=10)

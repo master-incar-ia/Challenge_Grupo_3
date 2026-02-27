@@ -14,6 +14,7 @@ from tqdm import tqdm
 from dataset import SignosDataset, build_augment_transform, build_eval_transform
 from model import VGG
 from model import ConvolutionalNet
+from model import SimpleResNet
 
 
 BATCH_SIZE = 512
@@ -154,7 +155,6 @@ def train_model(output_folder: Path, device: torch.device):
     train_loader = DataLoader(
         train_subset,
         batch_size=BATCH_SIZE,
-        batch_size=BATCH_SIZE,
         shuffle=True,
         pin_memory=pin_memory,
         num_workers=num_workers,
@@ -174,7 +174,8 @@ def train_model(output_folder: Path, device: torch.device):
     # Define the model, loss function, and optimizer
     output_dim = class_count
     #model = VGG(output_dim=output_dim).to(device) Ekain/Inigo
-    model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
+    #model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
+    model = SimpleResNet(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
     scaler = GradScaler("cuda", enabled=device.type == "cuda")
@@ -200,7 +201,7 @@ def train_model(output_folder: Path, device: torch.device):
         )
 
     # Training loop with validation and saving best weights
-    num_epochs = 80
+    num_epochs = 100
     best_val_loss = float("inf")
     best_model_path = output_folder / "best_model.pth"
 
