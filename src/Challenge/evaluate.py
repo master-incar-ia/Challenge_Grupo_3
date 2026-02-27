@@ -9,6 +9,9 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from model import ConvolutionalNet
+from model import SimpleResNet
+
 try:
     from .dataset import SignosDataset
     from .model import ConvolutionalNeuralNetwork, MultiTaskVGG, VGG
@@ -123,7 +126,7 @@ def resolve_checkpoint_path(base_outs: Path) -> Path:
 
 
 if __name__ == "__main__":
-    base_outs = Path(__file__).parent.parent.parent / "outs"
+    base_outs = Path(__file__).parent.parent.parent / "outs" / "Challenge"
     output_folder = base_outs / Path(__file__).parent.name
     output_folder.mkdir(exist_ok=True, parents=True)
     # Set the seed for reproducibility

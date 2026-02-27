@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from dataset import SignosDataset, build_augment_transform, build_eval_transform
 from model import MultiTaskVGG
+from model import ConvolutionalNet
+from model import SimpleResNet
 
 
 BATCH_SIZE = 512
@@ -179,7 +181,9 @@ def train_model(output_folder: Path, device: torch.device):
 
     # Define the model, loss function, and optimizer
     output_dim = class_count
-    model = MultiTaskVGG(output_dim=output_dim).to(device)
+    model = MultiTaskVGG(output_dim=output_dim).to(device) Ekain/Inigo
+    #model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
+    #model = SimpleResNet(output_dim=output_dim).to(device)
     criterion_cls = nn.CrossEntropyLoss()
     criterion_seg = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
@@ -206,7 +210,7 @@ def train_model(output_folder: Path, device: torch.device):
         )
 
     # Training loop with validation and saving best weights
-    num_epochs = 80
+    num_epochs = 100
     best_val_loss = float("inf")
     best_model_path = output_folder / "best_model.pth"
 
