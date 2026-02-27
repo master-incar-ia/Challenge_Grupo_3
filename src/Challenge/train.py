@@ -13,9 +13,10 @@ from torchvision import transforms
 from tqdm import tqdm
 from dataset import SignosDataset 
 from model import VGG
+from model import ConvolutionalNet
 
 
-BATCH_SIZE = 64
+BATCH_SIZE = 512
 IMAGE_SIZE = (32, 32)
 
 
@@ -153,7 +154,7 @@ def train_model(output_folder: Path, device: torch.device):
 
     train_loader = DataLoader(
         train_subset,
-        batch_size=512,
+        batch_size=BATCH_SIZE,
         shuffle=True,
         pin_memory=pin_memory,
         num_workers=num_workers,
@@ -162,7 +163,7 @@ def train_model(output_folder: Path, device: torch.device):
     )
     val_loader = DataLoader(
         val_subset,
-        batch_size=512,
+        batch_size=BATCH_SIZE,
         shuffle=False,
         pin_memory=pin_memory,
         num_workers=num_workers,
@@ -171,7 +172,8 @@ def train_model(output_folder: Path, device: torch.device):
     )
 
     # Define the model, loss function, and optimizer
-    model = VGG(output_dim=output_dim).to(device)
+    #model = VGG(output_dim=output_dim).to(device) Ekain/Inigo
+    model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
     scaler = GradScaler("cuda", enabled=device.type == "cuda")

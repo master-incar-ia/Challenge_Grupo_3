@@ -79,7 +79,59 @@ class VGG(nn.Module):
         x36 = self.relu15(x35)
         x37 = self.fc8(x36)
         return x37
-
+    
+class ConvolutionalNet(nn.Module):
+    def __init__(self, output_dim):
+        super().__init__()
+        # Primera capa convolucional
+        self.convolution = nn.Conv2d(3, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.activation = nn.ReLU()
+        
+        # Segunda capa convolucional
+        self.convolution2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.activation2 = nn.ReLU()
+        
+        # Primer maxpool
+        self.maxpool1 = nn.MaxPool2d(2)
+        
+        # Tercera capa convolucional
+        self.convolution3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
+        self.activation3 = nn.ReLU()
+        
+        # Segundo maxpool
+        self.maxpool2 = nn.MaxPool2d(2)
+        
+        # Capas fully connected
+        self.flatten = nn.Flatten()
+        self.dropout = nn.Dropout(0.25)
+        
+        # Cálculo de dimensiones para entrada 32x32:
+        # Entrada 32x32
+        # Después de conv1 y conv2 (padding=1) → 32x32
+        # Después de maxpool1 (2) → 16x16
+        # Después de conv3 (padding=1) → 16x16
+        # Después de maxpool2 (2) → 8x8
+        # Con 64 canales: 64 * 8 * 8 = 4096
+        
+        self.linear = nn.Linear(64 * 8 * 8, output_dim)
+        self.final_activation = nn.Softmax(dim=1)
+        
+    def forward(self, x, use_activation=True):
+        x = self.activation(self.convolution(x))
+        x = self.activation2(self.convolution2(x))
+        x = self.maxpool1(x)
+        x = self.activation3(self.convolution3(x))
+        x = self.maxpool2(x)
+        
+        x = self.flatten(x)
+        x = self.dropout(x)
+        x = self.linear(x)
+        
+        if use_activation:
+            y = self.final_activation(x)
+        else:
+            y = x
+        return y
 
 if __name__ == "__main__":
     model = ConvolutionalNeuralNetwork(output_dim=10)

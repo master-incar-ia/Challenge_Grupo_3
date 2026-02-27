@@ -9,6 +9,8 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from model import ConvolutionalNet
+
 try:
     from .dataset import SignosDataset
     from .model import VGG, ConvolutionalNeuralNetwork
@@ -103,7 +105,7 @@ def save_metrics_as_picture(metrics, filepath):
 
 
 if __name__ == "__main__":
-    output_folder = Path(__file__).parent.parent.parent / "outs"
+    output_folder = Path(__file__).parent.parent.parent / "outs" / "Challenge"
     output_folder.mkdir(exist_ok=True, parents=True)
     # Set the seed for reproducibility
     torch.manual_seed(42)
@@ -129,7 +131,7 @@ if __name__ == "__main__":
     # Load the best model weights
     checkpoint_path = output_folder / "best_model.pth"
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    checkpoint_output_dim = checkpoint["fc8.weight"].shape[0]
+    checkpoint_output_dim = checkpoint["linear.weight"].shape[0]
 
     if checkpoint_output_dim != len(class_names):
         print(
@@ -142,7 +144,8 @@ if __name__ == "__main__":
         else:
             class_names = class_names[:checkpoint_output_dim]
 
-    model = VGG(output_dim=checkpoint_output_dim)
+    #model = VGG(output_dim=checkpoint_output_dim)
+    model = ConvolutionalNet(output_dim = checkpoint_output_dim)
     model.load_state_dict(checkpoint)
 
     metrics = {}
