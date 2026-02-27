@@ -137,6 +137,9 @@ def train_model(output_folder: Path, device: torch.device):
     # Divides ese bloque en dos (90% entrenamiento, 10% validación interna)
     val_subset=SignosDataset(Mode="val", transform=transform)
 
+    # Extract number of classes before caching
+    output_dim = len(train_subset.data.classes)
+
     cache_in_ram = True
     if cache_in_ram:
         train_subset = build_cached_tensor_dataset(train_subset, name="train")
@@ -168,7 +171,6 @@ def train_model(output_folder: Path, device: torch.device):
     )
 
     # Define the model, loss function, and optimizer
-    output_dim = len(train_subset.data.classes)
     model = VGG(output_dim=output_dim).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
