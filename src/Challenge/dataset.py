@@ -6,7 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
-
+MEAN = [0.50956494, 0.50055039, 0.49491626] 
+STD = [0.07214967, 0.09587376, 0.11140345]
 
 class SignosDataset(Dataset):
     def __init__(
@@ -100,7 +101,7 @@ def build_eval_transform(image_size=(32, 32)):
         [
             transforms.Resize(image_size),
             transforms.ToTensor(),
-            transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+            transforms.Normalize(MEAN, STD),
         ]
     )
 
@@ -125,7 +126,7 @@ def build_augment_transform(image_size=(32, 32)):
             transforms.RandomApply([transforms.GaussianBlur(kernel_size=3)], p=0.2),
             transforms.ToTensor(),
             transforms.RandomApply([AddGaussianNoise(std=0.03)], p=0.3),
-            transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+            transforms.Normalize(MEAN, STD),
         ]
     )
 

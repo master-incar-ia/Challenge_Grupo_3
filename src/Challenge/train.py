@@ -11,10 +11,7 @@ from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from dataset import SignosDataset, build_augment_transform, build_eval_transform
-from model import MultiTaskVGG
-from model import ConvolutionalNet
-from model import SimpleResNet
-
+from model import MultiTaskVGG, VGG, ConvolutionalNeuralNetwork, SimpleResNet
 
 BATCH_SIZE = 512
 IMAGE_SIZE = (32, 32)
@@ -181,7 +178,7 @@ def train_model(output_folder: Path, device: torch.device):
 
     # Define the model, loss function, and optimizer
     output_dim = class_count
-    model = MultiTaskVGG(output_dim=output_dim).to(device) Ekain/Inigo
+    model = MultiTaskVGG(output_dim=output_dim).to(device) #Ekain/Inigo
     #model = ConvolutionalNet(output_dim = output_dim).to(device) # Oier
     #model = SimpleResNet(output_dim=output_dim).to(device)
     criterion_cls = nn.CrossEntropyLoss()

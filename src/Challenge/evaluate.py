@@ -132,11 +132,14 @@ if __name__ == "__main__":
     # Set the seed for reproducibility
     torch.manual_seed(42)
     # Data augmentation
+
+    MEAN = [0.50956494, 0.50055039, 0.49491626] 
+    STD = [0.07214967, 0.09587376, 0.11140345]
     transform = transforms.Compose(
         [
             transforms.Resize(IMAGE_SIZE),
             transforms.ToTensor(),
-            transforms.Normalize((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+            transforms.Normalize(MEAN, STD),
         ]
     )
 
