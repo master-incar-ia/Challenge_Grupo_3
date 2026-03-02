@@ -29,7 +29,7 @@ class ConvolutionalNeuralNetwork(nn.Module):
 
 
 class VGG(nn.Module):
-    def __init__(self, output_dim=1000, in_channels=4):
+    def __init__(self, output_dim=1000, in_channels=3):
         super().__init__()
 
         self.conv1_1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
@@ -162,36 +162,81 @@ class SimpleResNet(nn.Module):
         return x
 
 
-class Segmentation(nn.Module):
-    def __init__(self):
+class VGG_mask(nn.Module):
+    def __init__(self, output_dim=26, in_channels=3):
         super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+
+        self.conv1_1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU()
+        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.relu3 = nn.ReLU()
+        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.relu4 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.flatten = nn.Flatten()
+        self.fc6 = nn.Linear(8192, 8192)
+        self.relu5 = nn.ReLU()
+        self.fc7 = nn.Linear(8192, 512)
+        self.relu6 = nn.ReLU()
+        self.fc8 = nn.Linear(512, output_dim)
+
+        self.mask_up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.mask_conv1 = nn.Sequential(
+            nn.Conv2d(64 + 128, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
         )
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+        self.mask_up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.mask_conv2 = nn.Sequential(
+            nn.Conv2d(32 + 64, 32, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(32, 1, kernel_size=1),
         )
+        self.mask_head = nn.Conv2d(32, 1, kernel_size=1)
 
     def forward(self, x):
-        features = self.encoder(x)
-        mask_logits = self.decoder(features)
-        return mask_logits
+        x1 = self.conv1_1(x)
+        x2 = self.relu1(x1)
+        x3 = self.conv1_2(x2)
+        x4 = self.relu2(x3)
+        x5 = self.pool1(x4)
+
+        x6 = self.conv2_1(x5)
+        x7 = self.relu3(x6)
+        x8 = self.conv2_2(x7)
+        x9 = self.relu4(x8)
+        x10 = self.pool2(x9)
+
+        cls = self.flatten(x10)
+        cls = self.fc6(cls)
+        cls = self.relu5(cls)
+        cls = self.fc7(cls)
+        cls = self.relu6(cls)
+        class_logits = self.fc8(cls)
+
+        mask = self.mask_up1(x10)
+        mask = torch.cat([mask, x9], dim=1)
+        mask = self.mask_conv1(mask)
+        mask = self.mask_up2(mask)
+        mask = torch.cat([mask, x4], dim=1)
+        mask = self.mask_conv2(mask)
+        mask_logits = self.mask_head(mask)
+
+        return class_logits, mask_logits
+
+
+
+
+
 
   
 
 if __name__ == "__main__":
-    model = MultiTaskVGG(output_dim=10)
+    model = VGG_mask(output_dim=26, in_channels=3)
     print(model)
-    x = torch.randn(1, 3, 32, 32)
-    print(model(x)[0].shape, model(x)[1].shape)
+    image = torch.randn(1, 3, 32, 32)
+    class_logits, mask_logits = model(image)
+    print(class_logits.shape, mask_logits.shape)

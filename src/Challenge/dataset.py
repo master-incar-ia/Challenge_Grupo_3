@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-
+import skimage as ski
 
 
 class SignosDataset(Dataset):
@@ -95,6 +95,8 @@ class AddGaussianNoise:
         return tensor + torch.randn_like(tensor) * self.std
 
 
+
+
 def build_eval_transform(image_size=(32, 32)):
     return transforms.Compose(
         [
@@ -105,6 +107,21 @@ def build_eval_transform(image_size=(32, 32)):
     )
 
 
+def _hsv_saturation_mask(tensor: torch.Tensor, threshold: float = 0.2) -> torch.Tensor:
+    rgb = tensor.clamp(0.0, 1.0).permute(1, 2, 0).cpu().numpy()
+    hsv = ski.color.rgb2hsv(rgb)
+    saturation = torch.from_numpy(hsv[..., 1]).unsqueeze(0).float()
+    return (saturation > threshold).float()
+
+
+def MaskTransform(image_size=(32, 32)):
+    return transforms.Compose(
+        [
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: _hsv_saturation_mask(x, threshold=0.2)),
+        ]
+    )
 def build_augment_transform(image_size=(32, 32)):
     return transforms.Compose(
         [
@@ -148,3 +165,28 @@ if __name__ == "__main__":
     print(f"Dataset length: {len(dataset_train)}")
     print(f"First item: {dataset_train[0]}")
     dataset_val.plot(output_folder / "plot_dataset_example2.png")
+
+    mask_transform = MaskTransform(image_size=(32, 32))
+    dataset_val_raw = SignosDataset(Mode="val", transform=None)
+    sample_pil, sample_label = dataset_val_raw.data[0]
+    sample_rgb = transforms.ToTensor()(sample_pil)
+    sample_mask = mask_transform(sample_pil)
+
+    print(
+        f"MaskTransform test -> class: {dataset_val_raw.classes[sample_label]}, "
+        f"rgb shape: {tuple(sample_rgb.shape)}, mask shape: {tuple(sample_mask.shape)}"
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+    axes[0].imshow(sample_rgb.permute(1, 2, 0))
+    axes[0].set_title("RGB")
+    axes[0].axis("off")
+
+    axes[1].imshow(sample_mask.squeeze(0), cmap="gray")
+    axes[1].set_title("Mask (S > 0.2)")
+    axes[1].axis("off")
+
+    plt.tight_layout()
+    plt.savefig(output_folder / "mask_transform_test.png")
+    plt.close(fig)
+

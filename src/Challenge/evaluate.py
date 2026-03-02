@@ -14,11 +14,11 @@ from model import SimpleResNet
 
 try:
     from .dataset import SignosDataset
-    from .model import ConvolutionalNeuralNetwork, MultiTaskVGG, VGG
+    from .model import VGG
     from .train import BATCH_SIZE, IMAGE_SIZE
 except ImportError:
     from dataset import SignosDataset
-    from model import ConvolutionalNeuralNetwork, MultiTaskVGG, VGG
+    from model import VGG
     from train import BATCH_SIZE, IMAGE_SIZE
 
 
@@ -154,35 +154,8 @@ if __name__ == "__main__":
     checkpoint_path = resolve_checkpoint_path(base_outs)
     print(f"Loading checkpoint from: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
-
-    if "fc8.weight" in checkpoint:
-        checkpoint_output_dim = checkpoint["fc8.weight"].shape[0]
-        model = VGG(output_dim=checkpoint_output_dim)
-    elif "classifier.3.weight" in checkpoint:
-        checkpoint_output_dim = checkpoint["classifier.3.weight"].shape[0]
-        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
-    elif "classification_model.classifier_head.3.weight" in checkpoint:
-        checkpoint_output_dim = checkpoint["classification_model.classifier_head.3.weight"].shape[0]
-        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
-    elif "classifier_head.3.weight" in checkpoint:
-        checkpoint_output_dim = checkpoint["classifier_head.3.weight"].shape[0]
-        model = MultiTaskVGG(output_dim=checkpoint_output_dim)
-    else:
-        raise KeyError(
-            "Unsupported checkpoint format: expected keys 'fc8.weight', 'classifier.3.weight', 'classifier_head.3.weight' or 'classification_model.classifier_head.3.weight'."
-        )
-
-    if checkpoint_output_dim != len(class_names):
-        print(
-            "Warning: checkpoint output_dim "
-            f"({checkpoint_output_dim}) != dataset classes ({len(class_names)})."
-        )
-        if checkpoint_output_dim > len(class_names):
-            extra = [f"extra_class_{i}" for i in range(len(class_names), checkpoint_output_dim)]
-            class_names = class_names + extra
-        else:
-            class_names = class_names[:checkpoint_output_dim]
-
+    model = VGG(output_dim=len(class_names))
+  
     model.load_state_dict(checkpoint)
 
     metrics = {}
