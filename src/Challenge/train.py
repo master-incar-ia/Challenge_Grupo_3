@@ -265,6 +265,24 @@ def train_vgg_mask_model(output_folder: Path, device: torch.device):
     train_losses = []
     val_losses = []
 
+#     patience = 5
+# best_val_loss = float('inf')
+# epochs_without_improvement = 0
+
+# for epoch in range(num_epochs):
+#     # ... entrenamiento ...
+    
+#     if val_loss < best_val_loss:
+#         best_val_loss = val_loss
+#         torch.save(model.state_dict(), best_model_path)
+#         epochs_without_improvement = 0
+#     else:
+#         epochs_without_improvement += 1
+    
+#     if epochs_without_improvement >= patience:
+#         print(f"Early stopping en época {epoch+1}")
+#         break
+
     for epoch in tqdm(range(NUM_EPOCHS), desc="Train VGG"):
         model.train()
         train_loss = 0.0
