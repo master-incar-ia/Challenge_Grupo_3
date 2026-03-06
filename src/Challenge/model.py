@@ -227,7 +227,82 @@ class VGG_mask(nn.Module):
 
         return class_logits, mask_logits
 
+class VGG_mask_deepseek(nn.Module):
+    def __init__(self, output_dim=26, in_channels=3):
+        super().__init__()
 
+        # Bloque 1
+        self.conv1_1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU()
+        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Bloque 2
+        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.relu3 = nn.ReLU()
+        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.relu4 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Clasificador
+        self.flatten = nn.Flatten()
+        self.fc6 = nn.Linear(8192, 8192)
+        self.relu5 = nn.ReLU()
+        self.dropout1 = nn.Dropout(0.1)   # <-- Dropout 10% después de fc6
+        self.fc7 = nn.Linear(8192, 512)
+        self.relu6 = nn.ReLU()
+        self.dropout2 = nn.Dropout(0.1)   # <-- Dropout 10% después de fc7
+        self.fc8 = nn.Linear(512, output_dim)
+
+        # Rama de máscara (sin cambios)
+        self.mask_up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.mask_conv1 = nn.Sequential(
+            nn.Conv2d(64 + 128, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+        )
+        self.mask_up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.mask_conv2 = nn.Sequential(
+            nn.Conv2d(32 + 64, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+        )
+        self.mask_head = nn.Conv2d(32, 1, kernel_size=1)
+
+    def forward(self, x):
+        # Bloque 1
+        x1 = self.conv1_1(x)
+        x2 = self.relu1(x1)
+        x3 = self.conv1_2(x2)
+        x4 = self.relu2(x3)
+        x5 = self.pool1(x4)
+
+        # Bloque 2
+        x6 = self.conv2_1(x5)
+        x7 = self.relu3(x6)
+        x8 = self.conv2_2(x7)
+        x9 = self.relu4(x8)
+        x10 = self.pool2(x9)
+
+        # Clasificación con dropout
+        cls = self.flatten(x10)
+        cls = self.fc6(cls)
+        cls = self.relu5(cls)
+        cls = self.dropout1(cls)   # <-- Dropout aplicado
+        cls = self.fc7(cls)
+        cls = self.relu6(cls)
+        cls = self.dropout2(cls)   # <-- Dropout aplicado
+        class_logits = self.fc8(cls)
+
+        # Máscara (sin dropout, pues ya tiene sus propias capas)
+        mask = self.mask_up1(x10)
+        mask = torch.cat([mask, x9], dim=1)
+        mask = self.mask_conv1(mask)
+        mask = self.mask_up2(mask)
+        mask = torch.cat([mask, x4], dim=1)
+        mask = self.mask_conv2(mask)
+        mask_logits = self.mask_head(mask)
+
+        return class_logits, mask_logits
 
 
 

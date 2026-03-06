@@ -14,11 +14,11 @@ from model import SimpleResNet
 
 try:
     from .dataset import SignosDataset
-    from .model import VGG,VGG_mask
+    from .model import VGG,VGG_mask, VGG_mask_deepseek
     from .train import BATCH_SIZE, IMAGE_SIZE
 except ImportError:
     from dataset import SignosDataset
-    from model import VGG,VGG_mask
+    from model import VGG,VGG_mask, VGG_mask_deepseek
     from train import BATCH_SIZE, IMAGE_SIZE
 
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     checkpoint_path = resolve_checkpoint_path(base_outs)
     print(f"Loading checkpoint from: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    model = VGG_mask(output_dim=len(class_names))
+    model = VGG_mask_deepseek(output_dim=len(class_names))
   
     model.load_state_dict(checkpoint)
 

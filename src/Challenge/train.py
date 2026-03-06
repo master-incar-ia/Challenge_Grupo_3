@@ -10,13 +10,14 @@ import torch.optim as optim
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
+ 
 
 try:
     from .dataset import SignosDataset, MaskTransform, build_augment_transform, build_eval_transform
-    from .model import VGG,VGG_mask
+    from .model import VGG, VGG_mask ,VGG_mask_deepseek
 except ImportError:
     from dataset import SignosDataset, MaskTransform, build_augment_transform, build_eval_transform
-    from model import VGG,VGG_mask
+    from model import VGG,VGG_mask, VGG_mask_deepseek
 
 
 BATCH_SIZE = 512
@@ -249,7 +250,7 @@ def train_vgg_mask_model(output_folder: Path, device: torch.device):
     train_loader, val_loader, class_count = build_loaders(device)
     mask_transform = MaskTransform(image_size=IMAGE_SIZE)
 
-    model = VGG_mask(output_dim=class_count, in_channels=3).to(device)
+    model = VGG_mask_deepseek(output_dim=class_count, in_channels=3).to(device)
     criterion_cls = nn.CrossEntropyLoss()
     criterion_mask = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0001)
