@@ -264,6 +264,65 @@ class MultiTaskVGG(nn.Module):
         return class_logits, mask_logits
 
 
+class MultiTaskVGGDropout(nn.Module):
+    def __init__(self, output_dim=1000, dropout_p=0.5):
+        super().__init__()
+
+        self.conv1_1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU()
+        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.relu3 = nn.ReLU()
+        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.relu4 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Dropout después del backbone
+        self.dropout_features = nn.Dropout2d(p=0.3)
+
+        # Clasificador
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(8192, 1024),
+            nn.ReLU(),
+            nn.Dropout(p=dropout_p),   # Dropout clave
+            nn.Linear(1024, output_dim),
+        )
+
+        # Cabeza de segmentación
+        self.segmentation_head = nn.Sequential(
+            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(16, 1, kernel_size=1),
+        )
+
+    def forward(self, x):
+        x = self.relu1(self.conv1_1(x))
+        x = self.relu2(self.conv1_2(x))
+        x = self.pool1(x)
+
+        x = self.relu3(self.conv2_1(x))
+        x = self.relu4(self.conv2_2(x))
+        features = x
+
+        pooled = self.pool2(features)
+
+        # aplicar dropout en features
+        pooled = self.dropout_features(pooled)
+
+        class_logits = self.classifier(pooled)
+        mask_logits = self.segmentation_head(pooled)
+
+        return class_logits, mask_logits
+
+
 if __name__ == "__main__":
     model = MultiTaskVGG(output_dim=10)
     print(model)
