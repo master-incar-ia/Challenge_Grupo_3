@@ -325,11 +325,16 @@ def train_vgg_mask_model(output_folder: Path, device: torch.device):
 
         val_loss /= len(val_loader)
         val_losses.append(val_loss)
-
+        current_lr = optimizer.param_groups[0]["lr"]
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), best_model_path)
-
+        if (epoch + 1) % 10 == 0 or epoch == 0:
+            print(
+                f"Epoch [{epoch + 1}/{NUM_EPOCHS}] "
+                f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | LR: {current_lr:.2e}"
+            )
+            
     plt.figure(figsize=(10, 5))
     plt.plot(range(NUM_EPOCHS), train_losses, label="Train Loss")
     plt.plot(range(NUM_EPOCHS), val_losses, label="Validation Loss")
