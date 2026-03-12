@@ -117,6 +117,78 @@ class AddGaussianNoise:
         return tensor + torch.randn_like(tensor) * self.std
 
 
+def _tensor_to_display_image(tensor: torch.Tensor) -> torch.Tensor:
+    """Convert a transformed tensor to an RGB image in [0, 1] for plotting/saving."""
+    image = tensor.detach().cpu().float()
+    if image.ndim == 2:
+        image = image.unsqueeze(0)
+    if image.shape[0] == 3:
+        mean = torch.tensor(MEAN).view(3, 1, 1)
+        std = torch.tensor(STD).view(3, 1, 1)
+        image = image * std + mean
+    return image.clamp(0.0, 1.0)
+
+
+def save_transformations_preview(
+    dataset: SignosDataset,
+    filepath,
+    sample_idx: int = 0,
+    include_original: bool = True,
+):
+    """Save a grid image with all transformations applied to one dataset sample."""
+    if len(dataset.data) == 0:
+        raise ValueError("Cannot preview transformations for an empty dataset.")
+    if sample_idx < 0 or sample_idx >= len(dataset.data):
+        raise IndexError(f"sample_idx {sample_idx} is out of range for base dataset length {len(dataset.data)}")
+
+    image_path, label = dataset.data.samples[sample_idx]
+    original_image = dataset.data.loader(image_path)
+    class_name = dataset.classes[label]
+
+    transformed_images = []
+    titles = []
+
+    if include_original:
+        if dataset.transform is not None:
+            transformed_images.append(_tensor_to_display_image(dataset.transform(original_image)))
+            titles.append("base_transform")
+        else:
+            transformed_images.append(transforms.ToTensor()(original_image))
+            titles.append("original")
+
+    for idx, aug_transform in enumerate(dataset.augmented_transforms, start=1):
+        transformed_images.append(_tensor_to_display_image(aug_transform(original_image)))
+        titles.append(f"aug_{idx}")
+
+    if not transformed_images:
+        transformed_images.append(transforms.ToTensor()(original_image))
+        titles.append("original")
+
+    num_images = len(transformed_images)
+    num_cols = min(4, num_images)
+    num_rows = math.ceil(num_images / num_cols)
+
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(3.5 * num_cols, 3.5 * num_rows))
+    if not isinstance(axes, (list, tuple)):
+        axes = [axes] if num_images == 1 else axes.flatten()
+
+    for i in range(num_rows * num_cols):
+        ax = axes[i]
+        ax.axis("off")
+        if i < num_images:
+            img = transformed_images[i].permute(1, 2, 0)
+            if transformed_images[i].shape[0] == 1:
+                ax.imshow(img.squeeze(-1), cmap="gray")
+            else:
+                ax.imshow(img)
+            ax.set_title(titles[i], fontsize=9)
+
+    fig.suptitle(f"Class: {class_name} | sample_idx={sample_idx}")
+    plt.tight_layout()
+    plt.savefig(filepath, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 
 
 def build_eval_transform(image_size=(32, 32)):
@@ -228,14 +300,7 @@ def build_augment_transform(image_size=(32, 32)):
                 transforms.Normalize(MEAN, STD),
             ]
         ),
-        transforms.Compose(
-            [
-                transforms.Resize(image_size),
-                transforms.ToTensor(),
-                AddGaussianNoise(std=0.05),
-                transforms.Normalize(MEAN, STD),
-            ]
-        ),
+
     ]
 
 if __name__ == "__main__":
@@ -256,11 +321,22 @@ if __name__ == "__main__":
 
     print(f"Dataset length: {len(dataset_train)}")
     print(f"First item: {dataset_train[0]}")
-    dataset_val.plot(output_folder / "plot_dataset_example2.png")
+    #dataset_val.plot(output_folder / "plot_dataset_example2.png")
+
+    # Save one image with all transforms applied to the same sample.
+    save_transformations_preview(
+        dataset=dataset_train,
+        filepath=output_folder / "all_transformations_preview.png",
+        sample_idx=0,
+        include_original=True,
+    )
+
+    first_sample = _tensor_to_display_image(dataset_train[0][0])
+    plt.imsave(output_folder / "first_sample_train.png", first_sample.permute(1, 2, 0).numpy())
 
     mask_transform = MaskTransform(image_size=(32, 32))
-    dataset_val_raw = SignosDataset(Mode="val", transform=None)
-    sample_pil, sample_label = dataset_val_raw.data[0]
+    dataset_val_raw = SignosDataset(Mode="val", transform=build_augment_transform)
+    sample_pil, sample_label = dataset_val_raw.data[6]
     sample_rgb = transforms.ToTensor()(sample_pil)
     sample_mask = mask_transform(sample_pil)
 
@@ -281,4 +357,4 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(output_folder / "mask_transform_test.png")
     plt.close(fig)
-
+    
