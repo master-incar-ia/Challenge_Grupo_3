@@ -4,3 +4,4 @@ outs
 .venv311
 .vscode
 __pycache__/
+src/Challenge/__pycache__

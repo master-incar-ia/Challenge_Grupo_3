@@ -229,7 +229,7 @@ def MaskTransform(image_size=(32, 32)):
         [
             transforms.Resize(image_size),
             transforms.Lambda(_ensure_float_tensor),
-            transforms.Lambda(lambda x: _hsv_saturation_mask(x, threshold=0.2)),
+            transforms.Lambda(lambda x: _hsv_saturation_mask(x, threshold=0.1)),
         ]
     )
 def build_augment_transform(image_size=(32, 32)):
@@ -339,7 +339,6 @@ if __name__ == "__main__":
     sample_pil, sample_label = dataset_val_raw.data[6]
     sample_rgb = transforms.ToTensor()(sample_pil)
     sample_mask = mask_transform(sample_pil)
-
     print(
         f"MaskTransform test -> class: {dataset_val_raw.classes[sample_label]}, "
         f"rgb shape: {tuple(sample_rgb.shape)}, mask shape: {tuple(sample_mask.shape)}"
@@ -351,7 +350,7 @@ if __name__ == "__main__":
     axes[0].axis("off")
 
     axes[1].imshow(sample_mask.squeeze(0), cmap="gray")
-    axes[1].set_title("Mask (S > 0.2)")
+    axes[1].set_title("Mask (S > 0.15)")
     axes[1].axis("off")
 
     plt.tight_layout()
