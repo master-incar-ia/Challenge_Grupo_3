@@ -229,7 +229,7 @@ def MaskTransform(image_size=(32, 32)):
         [
             transforms.Resize(image_size),
             transforms.Lambda(_ensure_float_tensor),
-            transforms.Lambda(lambda x: _hsv_saturation_mask(x, threshold=0.1)),
+            transforms.Lambda(lambda x: _hsv_saturation_mask(x, threshold=0.15)),
         ]
     )
 def build_augment_transform(image_size=(32, 32)):

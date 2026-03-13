@@ -110,7 +110,6 @@ def save_metrics_as_picture(metrics, filepath):
 def resolve_checkpoint_path(base_outs: Path) -> Path:
     """Resolve best_model checkpoint path trying common project locations."""
     candidates = [
-        base_outs / "Challenge" / "best_model.pth",
         base_outs / "best_model.pth",
     ]
     for candidate in candidates:
